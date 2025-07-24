@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-http-validator"
+version = "0.1.0"
+description = "HTTP-based validator for Model Context Protocol (MCP) servers with OAuth 2.0 authorization testing"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "MCP Validator Team", email = "mcp@example.com" },
+]
+keywords = ["mcp", "validation", "oauth", "testing", "http", "api"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.0",
+    "authlib>=1.3.0",
+    "rich>=13.0",
+    "click>=8.1",
+    "python-dotenv>=1.0",
+    "pyjwt[crypto]>=2.8",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "black>=24.0",
+]
+
+[project.scripts]
+mcp-validate = "mcp_http_validator.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/example/mcp-http-validator"
+Documentation = "https://mcp-http-validator.readthedocs.io"
+Repository = "https://github.com/example/mcp-http-validator"
+Issues = "https://github.com/example/mcp-http-validator/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_http_validator"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501"]  # line too long
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
