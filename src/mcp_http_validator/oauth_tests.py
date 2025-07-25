@@ -577,6 +577,7 @@ class OAuthTestValidator(BaseMCPValidator):
         
         # First, check if we have protected resource metadata to know expected audience
         expected_audience = self.mcp_endpoint.rstrip('/')  # Default to MCP endpoint URL
+        actual_requested_resource = self.mcp_endpoint  # What we're currently requesting in tokens
         details["expected_audience"] = expected_audience
         details["resource_metadata_found"] = False
         
@@ -591,6 +592,10 @@ class OAuthTestValidator(BaseMCPValidator):
                     expected_audience = resource_uri.rstrip('/')
                     details["expected_audience"] = expected_audience
                     details["resource_metadata_found"] = True
+                    # Note: Currently the validator requests tokens with self.mcp_endpoint
+                    # but it should use the resource from metadata
+                    details["validator_requests_resource"] = actual_requested_resource
+                    details["metadata_declares_resource"] = expected_audience
                 elif resource_uri is None:
                     details["metadata_warning"] = "Protected resource metadata has null 'resource' field"
         except Exception as e:
@@ -681,7 +686,7 @@ class OAuthTestValidator(BaseMCPValidator):
                     }
             
             # Check audience claim
-            aud_claim = token_data.get("aud", [])
+            aud_claim = token_data.get("token_audience", [])
             if isinstance(aud_claim, str):
                 aud_claim = [aud_claim]
             
@@ -704,15 +709,27 @@ class OAuthTestValidator(BaseMCPValidator):
                 ), details
             
             if not audience_match:
-                # Token doesn't include this server in audience
-                return False, (
-                    f"Access token audience doesn't include this MCP server. "
-                    f"Token audience: {aud_claim}, Expected: {expected_audience}. "
-                    f"Per RFC 8707, tokens must include the target resource server in their audience claim. "
-                    f"This prevents token confusion attacks where tokens for one server are used on another. "
-                    f"The OAuth server should include the requested 'resource' parameter in the token's 'aud' claim. "
-                    f"Run 'mcp-validate flow' for interactive OAuth flow."
-                ), details
+                # Check if this is because validator is requesting wrong resource
+                if details.get("resource_metadata_found") and details.get("validator_requests_resource") != details.get("metadata_declares_resource"):
+                    # The validator is requesting tokens with the wrong resource parameter
+                    return False, (
+                        f"Token audience mismatch due to validator configuration issue. "
+                        f"Token audience: {aud_claim}, Expected: {expected_audience}. "
+                        f"The validator is requesting tokens with resource='{details.get('validator_requests_resource')}' "
+                        f"but the protected resource metadata declares resource='{details.get('metadata_declares_resource')}'. "
+                        f"Per RFC 9728, token requests should use the resource identifier from the metadata. "
+                        f"This is a known issue in the validator that needs to be fixed."
+                    ), details
+                else:
+                    # Token doesn't include this server in audience
+                    return False, (
+                        f"Access token audience doesn't include this MCP server. "
+                        f"Token audience: {aud_claim}, Expected: {expected_audience}. "
+                        f"Per RFC 8707, tokens must include the target resource server in their audience claim. "
+                        f"This prevents token confusion attacks where tokens for one server are used on another. "
+                        f"The OAuth server should include the requested 'resource' parameter in the token's 'aud' claim. "
+                        f"Run 'mcp-validate flow' for interactive OAuth flow."
+                    ), details
             
             # Token has correct audience - now we need to verify server validates it
             # We can't definitively test server-side validation without a token for wrong audience
