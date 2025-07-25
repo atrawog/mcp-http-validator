@@ -77,10 +77,24 @@ def cli():
     help="Request timeout in seconds",
 )
 @click.option(
-    "--verbose",
-    "-v",
+    "--terse",
     is_flag=True,
-    help="Show detailed test information",
+    help="Disable detailed test output (show only summary)",
+)
+@click.option(
+    "--no-auth",
+    is_flag=True,
+    help="Disable automatic OAuth registration and authentication",
+)
+@click.option(
+    "--test-tools",
+    is_flag=True,
+    help="Also test MCP tools after validation",
+)
+@click.option(
+    "--test-destructive",
+    is_flag=True,
+    help="Include destructive tool tests (use with caution)",
 )
 def validate(
     server_url: str,
@@ -89,119 +103,54 @@ def validate(
     output_file: Optional[str],
     no_ssl_verify: bool,
     timeout: float,
-    verbose: bool,
+    terse: bool,
+    no_auth: bool,
+    test_tools: bool,
+    test_destructive: bool,
 ):
     """Validate an MCP server for specification compliance.
     
-    Tests MCP server endpoints and OAuth integration. If authentication is
-    required, run 'mcp-validate client register' and 'mcp-validate flow' first.
+    By default, runs comprehensive testing with detailed output and automatic
+    OAuth setup. Use --terse for minimal output or --no-auth to disable
+    automatic authentication.
     
-    Example:
-        mcp-validate validate https://mcp.example.com
-        mcp-validate validate https://mcp.example.com --token YOUR_TOKEN
+    Testing includes:
+    - OAuth authorization server discovery and validation
+    - Protected resource metadata compliance
+    - Authentication and authorization flows
+    - Core MCP protocol compliance
+    - Tool discovery and testing (with --test-tools)
+    
+    Authentication:
+    - Automatic OAuth registration/auth by default (disable with --no-auth)
+    - Use --token to provide an existing access token
+    - Or manually run 'client register' and 'flow' commands first
+    
+    Examples:
+        mcp-validate https://mcp.example.com                    # Full validation with auto-auth
+        mcp-validate https://mcp.example.com --terse            # Summary output only
+        mcp-validate https://mcp.example.com --no-auth          # Skip auto OAuth setup
+        mcp-validate https://mcp.example.com --test-tools       # Also test MCP tools
+        mcp-validate https://mcp.example.com --token YOUR_TOKEN # Use existing token
     """
-    async def run_validation():
-        # Display test results header immediately
-        console.print()
-        console.print("[bold]Test Results:[/bold]")
-        console.print()
-        
-        # Track results for summary
-        test_results = []
-        
-        async def display_test_result(result: TestResult):
-            """Display test result as it completes."""
-            test_results.append(result)
-            
-            # Display the test result immediately
-            status_icons = {
-                TestStatus.PASSED: "✓",
-                TestStatus.FAILED: "✗",
-                TestStatus.SKIPPED: "⊘",
-                TestStatus.ERROR: "⚠",
-            }
-            
-            status_colors = {
-                TestStatus.PASSED: "green",
-                TestStatus.FAILED: "red",
-                TestStatus.SKIPPED: "yellow",
-                TestStatus.ERROR: "red",
-            }
-            
-            icon = status_icons.get(result.status, "?")
-            color = status_colors.get(result.status, "white")
-            
-            # Simple one-line output for each test
-            console.print(f"[{color}]{icon}[/{color}] {result.test_case.name}")
-        
-        async with MCPValidator(
-            server_url,
-            access_token=token,
-            timeout=timeout,
-            verify_ssl=not no_ssl_verify,
-            auto_register=False,  # Never auto-register in validate command
-            progress_callback=display_test_result,  # Stream results
-        ) as validator:
-            # Check if we have a token
-            if not token:
-                # Try to get from env
-                validator.access_token = validator.env_manager.get_valid_access_token(server_url)
-                if validator.access_token:
-                    console.print("[dim]Using stored access token from .env[/dim]")
-                    console.print()
-                else:
-                    # Check if we need auth
-                    auth_server = await validator.discover_oauth_server()
-                    if auth_server:
-                        console.print("[yellow]⚠️  This MCP server requires authentication[/yellow]")
-                        console.print()
-                        console.print("To authenticate:")
-                        console.print(f"  1. Register OAuth client: [cyan]mcp-validate client register {server_url}[/cyan]")
-                        console.print(f"  2. Get access token: [cyan]mcp-validate flow {server_url}[/cyan]")
-                        console.print(f"  3. Run validation: [cyan]mcp-validate validate {server_url}[/cyan]")
-                        console.print()
-                        console.print("Or run all tests: [cyan]mcp-validate full {server_url}[/cyan]")
-                        console.print()
-                    console.print("[yellow]Some tests may be skipped without authentication[/yellow]")
-                    console.print()
-            
-            # Run validation tests (results will be displayed via callback)
-            validation_result = await validator.validate()
-            server_info = validator.server_info
-        
-        # Generate compliance report
-        checker = ComplianceChecker(validation_result, server_info)
-        report = checker.check_compliance()
-        
-        # Output results
-        if output == "terminal":
-            # Only show summary since we already displayed test results
-            display_terminal_summary(report)
-        elif output == "json":
-            output_data = json.dumps(report.model_dump(), indent=2, default=str)
-            if output_file:
-                Path(output_file).write_text(output_data)
-                console.print(f"[green]Report saved to {output_file}[/green]")
-            else:
-                console.print(output_data)
-        elif output == "markdown":
-            markdown = report.to_markdown()
-            if output_file:
-                Path(output_file).write_text(markdown)
-                console.print(f"[green]Report saved to {output_file}[/green]")
-            else:
-                console.print(markdown)
-        
-        return report
+    # Import the merged validate implementation
+    from .cli_validate_merged import create_merged_validate_command
+    merged_validate = create_merged_validate_command()
+    # Call the merged function with inverted flags for new defaults
+    merged_validate.callback(
+        server_url=server_url,
+        token=token,
+        output=output,
+        output_file=output_file,
+        no_ssl_verify=no_ssl_verify,
+        timeout=timeout,
+        verbose=not terse,  # verbose is default, terse disables it
+        auto_auth=not no_auth,  # auto-auth is default, no-auth disables it
+        test_tools=test_tools,
+        test_destructive=test_destructive,
+    )
     
-    try:
-        report = asyncio.run(run_validation())
-        # Exit with non-zero code if tests failed
-        if report.validation_result.failed_tests > 0:
-            sys.exit(1)
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        sys.exit(1)
+    # Validation is now handled by the merged function
 
 
 def display_terminal_summary(report):
@@ -1623,418 +1572,6 @@ def token_refresh(mcp_server_url: str):
         console.print(f"[red]Error: {e}[/red]")
         sys.exit(1)
 
-
-@cli.command()
-@click.argument("mcp_server_url")
-@click.option(
-    "--no-ssl-verify",
-    is_flag=True,
-    help="Disable SSL certificate verification",
-)
-@click.option(
-    "--test-destructive",
-    is_flag=True,
-    help="Also test destructive tools (use with caution)",
-)
-@click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    help="Show detailed test information",
-)
-def full(
-    mcp_server_url: str,
-    no_ssl_verify: bool,
-    test_destructive: bool,
-    verbose: bool,
-):
-    """Run ALL validation tests on an MCP server.
-    
-    This runs a comprehensive test suite in the correct order:
-    1. OAuth server discovery and testing (if needed)
-    2. OAuth client registration (if needed)
-    3. OAuth flow to get access token (if needed)
-    4. Main MCP validation
-    5. MCP tools testing
-    
-    Example:
-        mcp-validate full https://mcp.example.com
-    """
-    env_manager = EnvManager()
-    
-    console.print("[bold]Running Full MCP Validation Suite[/bold]")
-    console.print(f"Server: [cyan]{mcp_server_url}[/cyan]")
-    console.print()
-    
-    # Track overall results
-    all_passed = True
-    oauth_passed = None
-    validation_passed = None
-    
-    # 0. First check if server requires authentication
-    async def check_auth_required():
-        async with MCPValidator(mcp_server_url, verify_ssl=not no_ssl_verify) as validator:
-            return await validator._check_auth_required()
-    
-    auth_required = asyncio.run(check_auth_required())
-    
-    if not auth_required:
-        console.print("[green]ℹ️  This is a public MCP server (no authentication required)[/green]")
-        console.print("[green]   Skipping OAuth discovery and authentication steps[/green]")
-        console.print()
-    
-    # Only check OAuth if authentication is required
-    oauth_server_url = None
-    if auth_required:
-        # Check if we need OAuth setup
-        credentials = env_manager.get_oauth_credentials(mcp_server_url)
-        has_valid_token = env_manager.get_valid_access_token(mcp_server_url) is not None
-        
-        # 1. Test OAuth server first
-        console.print("[bold blue]═══ Testing OAuth Server ═══[/bold blue]")
-        
-        async def check_oauth_discovery():
-            async with MCPValidator(mcp_server_url, verify_ssl=not no_ssl_verify) as validator:
-                oauth_server = await validator.discover_oauth_server()
-                if oauth_server:
-                    console.print(f"[green]✓[/green] OAuth server discovered: {oauth_server}")
-                    return oauth_server
-                else:
-                    console.print("[yellow]No OAuth server discovered - MCP server doesn't implement OAuth discovery[/yellow]")
-                    console.print("[dim]This server may use a different authentication method[/dim]")
-                    return None
-        
-        console.print("[bold]Discovering OAuth server metadata...[/bold]")
-        oauth_server_url = asyncio.run(check_oauth_discovery())
-        
-        # If OAuth server discovered, test its compliance
-        if oauth_server_url:
-            console.print()
-            # Run OAuth server compliance test directly
-            async def run_oauth_compliance():
-                has_failures = False
-                async with OAuthTestClient(oauth_server_url) as client:
-                    try:
-                        metadata = await client.discover_metadata()
-                        metadata_url = f"{oauth_server_url}/.well-known/oauth-authorization-server"
-                        console.print(f"[green]✓[/green] Metadata endpoint found: [cyan]{metadata_url}[/cyan]")
-                        console.print(f"  Issuer: {metadata.issuer}")
-                        
-                        # Show all discovered endpoints
-                        console.print("\n  Discovered endpoints:")
-                        console.print(f"  - Authorization: {metadata.authorization_endpoint}")
-                        console.print(f"  - Token: {metadata.token_endpoint}")
-                        
-                        if metadata.jwks_uri:
-                            console.print(f"  - JWKS: {metadata.jwks_uri}")
-                        if metadata.registration_endpoint:
-                            console.print(f"  - Registration: {metadata.registration_endpoint}")
-                        if metadata.introspection_endpoint:
-                            console.print(f"  - Introspection: {metadata.introspection_endpoint}")
-                        if metadata.revocation_endpoint:
-                            console.print(f"  - Revocation: {metadata.revocation_endpoint}")
-                        
-                        # Show additional metadata
-                        if metadata.scopes_supported:
-                            console.print(f"\n  Scopes supported: {', '.join(metadata.scopes_supported)}")
-                        if metadata.grant_types_supported:
-                            console.print(f"  Grant types: {', '.join(metadata.grant_types_supported)}")
-                        if metadata.token_endpoint_auth_methods_supported:
-                            console.print(f"  Token auth methods: {', '.join(metadata.token_endpoint_auth_methods_supported)}")
-                        if metadata.id_token_signing_alg_values_supported:
-                            console.print(f"  ID token algorithms: {', '.join(metadata.id_token_signing_alg_values_supported)}")
-                        if metadata.resource_indicators_supported is not None:
-                            console.print(f"  Resource indicators: {metadata.resource_indicators_supported}")
-                    except Exception as e:
-                        console.print(f"[red]✗[/red] Failed to discover metadata: {e}")
-                        return False
-                    
-                    # Check compliance (without redundant header)
-                    console.print()
-                    compliance_results = await ComplianceChecker.check_oauth_server_compliance(client)
-                    
-                    for check, result in compliance_results.items():
-                        if result == "PASS":
-                            console.print(f"[green]✓[/green] {check}")
-                        elif result.startswith("WARN"):
-                            console.print(f"[yellow]⚠[/yellow] {check}: {result}")
-                        else:
-                            console.print(f"[red]✗[/red] {check}: {result}")
-                            has_failures = True
-                    
-                    return not has_failures
-            
-            oauth_passed = asyncio.run(run_oauth_compliance())
-            if not oauth_passed:
-                all_passed = False
-        else:
-            oauth_passed = False  # No OAuth server found when auth required
-            all_passed = False
-        
-        console.print()
-    
-    # Only proceed with OAuth if server supports it AND requires auth
-    if oauth_server_url and auth_required:
-        # 2. Register OAuth client if needed
-        console.print("[bold blue]═══ OAuth Client Registration ═══[/bold blue]")
-        if not credentials["client_id"]:
-            console.print("[yellow]No OAuth client registered for this server[/yellow]")
-            console.print("[dim]Attempting automatic client registration...[/dim]")
-            
-            # Run client registration
-            async def register_client():
-                async with MCPValidator(mcp_server_url, verify_ssl=not no_ssl_verify, auto_register=False) as validator:
-                    auth_server_url = await validator.discover_oauth_server()
-                    if not auth_server_url:
-                        return False
-                    
-                    async with OAuthTestClient(auth_server_url, verify_ssl=not no_ssl_verify) as client:
-                        try:
-                            # Get metadata
-                            metadata = await client.discover_metadata()
-                            if not metadata.registration_endpoint:
-                                console.print("[red]✗[/red] OAuth server doesn't support dynamic client registration")
-                                return False
-                            
-                            # Register client
-                            registration_data = {
-                                "client_name": "MCP HTTP Validator (Full Test)",
-                                "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"],
-                                "grant_types": ["authorization_code", "refresh_token"],
-                                "response_types": ["code"],
-                                "scope": "mcp:read mcp:write",
-                                "software_id": "mcp-http-validator",
-                                "software_version": "0.1.0",
-                            }
-                            
-                            response = await client.client.post(
-                                str(metadata.registration_endpoint),
-                                json=registration_data,
-                                headers={"Content-Type": "application/json"},
-                            )
-                            response.raise_for_status()
-                            
-                            response_data = response.json()
-                            client_id = response_data.get("client_id")
-                            client_secret = response_data.get("client_secret")
-                            reg_token = response_data.get("registration_access_token")
-                            
-                            # Save credentials
-                            env_manager.save_oauth_credentials(
-                                mcp_server_url,
-                                client_id,
-                                client_secret,
-                                reg_token,
-                            )
-                            
-                            console.print(f"[green]✓[/green] Client registered successfully: {client_id}")
-                            return True
-                            
-                        except Exception as e:
-                            console.print(f"[red]✗[/red] Registration failed: {e}")
-                            return False
-            
-            registration_success = asyncio.run(register_client())
-            if registration_success:
-                # Reload credentials
-                credentials = env_manager.get_oauth_credentials(mcp_server_url)
-            else:
-                console.print("[yellow]Continuing without OAuth client...[/yellow]")
-        else:
-            console.print(f"[green]✓[/green] OAuth client already registered: {credentials['client_id']}")
-        console.print()
-        
-        # 3. Get access token if needed
-        if not has_valid_token and credentials["client_id"]:
-            console.print("[bold blue]═══ OAuth Authentication Flow ═══[/bold blue]")
-            console.print("[yellow]No valid access token found[/yellow]")
-            console.print(f"[dim]Would obtain token with: mcp-validate flow {mcp_server_url}[/dim]")
-            console.print("[red]Skipping - OAuth flow not yet implemented in full command[/red]")
-            console.print()
-    
-    # 4. Run main validation
-    console.print("[bold blue]═══ Main MCP Validation ═══[/bold blue]")
-    
-    # Run validation directly
-    async def run_validation_test():
-        # Track results for building report at the end
-        test_results = []
-        
-        async def display_detailed_test_result(result: TestResult):
-            """Display detailed test result as it completes."""
-            test_results.append(result)
-            
-            # Build detailed test display - same logic as display_terminal_report
-            status_icons = {
-                TestStatus.PASSED: "✓",
-                TestStatus.FAILED: "✗",
-                TestStatus.SKIPPED: "⊘",
-                TestStatus.ERROR: "⚠",
-            }
-            
-            status_colors = {
-                TestStatus.PASSED: "green",
-                TestStatus.FAILED: "red",
-                TestStatus.SKIPPED: "yellow",
-                TestStatus.ERROR: "red",
-            }
-            
-            icon = status_icons.get(result.status, "?")
-            color = status_colors.get(result.status, "white")
-            
-            # Build test display
-            test_info = []
-            
-            # Test name and status on same line
-            test_info.append(f"[bold {color}]{icon} {result.test_case.name}[/bold {color}] [{result.test_case.category}]")
-            
-            # Test description if available
-            if result.details and result.details.get("test_description"):
-                desc = result.details["test_description"]
-                test_info.append(f"   [dim]Testing: {desc}[/dim]")
-            
-            # Add URL tested if available
-            if result.details and result.details.get("url_tested"):
-                test_info.append(f"   [dim]URL: {result.details['url_tested']}[/dim]")
-        
-            # Show details for all tests (not just failures) but vary by status
-            if result.status == TestStatus.PASSED:
-                # For passed tests, show the success message if available
-                if result.message:
-                    # Success messages are now in message field
-                    import textwrap
-                    wrapped = textwrap.fill(result.message, width=80, initial_indent="   ", subsequent_indent="   ")
-                    test_info.append(f"\n[green]{wrapped}[/green]")
-                
-                # Add any additional details
-                if result.details:
-                    details = result.details
-                    
-                    # Special handling for specific successful tests
-                    if result.test_case.id == "http-transport" and "content_type" in details:
-                        test_info.append(f"   [dim]Transport type: {details.get('transport_type', 'json')}[/dim]")
-            
-            else:  # Failed, Error, or Skipped
-                # Primary error message with context
-                if result.message:
-                    # Make error messages more specific
-                    error_msg = result.message
-                    
-                    # Add URL context to error messages
-                    if result.details and "url_tested" in result.details:
-                        url = result.details["url_tested"]
-                        if "requires authentication" in error_msg and url not in error_msg:
-                            error_msg = f"{error_msg} (endpoint: {url})"
-                        elif "failed with status" in error_msg and url not in error_msg:
-                            error_msg = error_msg.replace("failed with status", f"endpoint {url} returned status")
-                    
-                    # Split long messages into readable chunks
-                    import textwrap
-                    wrapped = textwrap.fill(error_msg, width=80, initial_indent="   ", subsequent_indent="   ")
-                    test_info.append(f"\n[yellow]{wrapped}[/yellow]")
-                
-                # Detailed failure information
-                if result.details:
-                    details = result.details
-                    
-                    # Show what was expected vs what happened with full context
-                    if "expected_status" in details and "status_code" in details:
-                        url = details.get('url_tested', 'endpoint')
-                        test_info.append(f"\n   Expected: HTTP {details['expected_status']} → Got: HTTP {details['status_code']} from {url}")
-                    
-                    # Add fix recommendation if available
-                    if details.get("fix"):
-                        test_info.append(f"\n   [cyan]Fix: {details['fix']}[/cyan]")
-                    
-                    # Add spec reference recommendation if available
-                    if details.get("spec_reference"):
-                        test_info.append(f"\n   [yellow]→ {details['spec_reference']}[/yellow]")
-            
-            # Print test result
-            for line in test_info:
-                console.print(line)
-            
-            # Add spacing between tests
-            console.print()
-        
-        async with MCPValidator(
-            mcp_server_url,
-            access_token=None,  # Let it use env token
-            timeout=30.0,
-            verify_ssl=not no_ssl_verify,
-            auto_register=False,
-            progress_callback=display_detailed_test_result,  # Stream detailed results
-        ) as validator:
-            # Check if we have a token
-            validator.access_token = validator.env_manager.get_valid_access_token(mcp_server_url)
-            if validator.access_token:
-                console.print("[dim]Using stored access token from .env[/dim]")
-            else:
-                console.print("[yellow]Some tests may be skipped without authentication[/yellow]")
-            
-            console.print()
-            console.print("[bold]Test Results:[/bold]")
-            console.print()
-            
-            validation_result = await validator.validate()
-            server_info = validator.server_info
-            
-            # Generate compliance report
-            checker = ComplianceChecker(validation_result, server_info)
-            report = checker.check_compliance()
-            
-            # Display only the summary since we already showed detailed results
-            if verbose:
-                # Show additional technical details
-                console.print()
-                console.print("[bold]Additional Technical Details:[/bold]")
-                console.print()
-                
-                for test_result in validation_result.test_results:
-                    # Only show tests with interesting technical details
-                    if test_result.details and test_result.status != TestStatus.PASSED:
-                        # Skip if no technical details beyond what was already shown
-                        tech_keys = set(test_result.details.keys()) - {
-                            "test_description", "requirement", "purpose", "fix", 
-                            "expected_status", "status_code", "url_tested", "spec_reference",
-                            "missing_params", "found_params", "spec_requirement", "example_header",
-                            "diagnosis", "likely_cause", "note", "violation", "auth_status_code",
-                            "www_authenticate", "protocol_version_sent", "header_name", "body"
-                        }
-                        
-                        # Skip tests without additional technical details
-                        if not tech_keys or all(k in {"error", "errors", "warnings"} for k in tech_keys):
-                            continue
-                            
-                        console.print(f"[cyan]{test_result.test_case.name}:[/cyan]")
-                        
-                        # Show additional details based on test type
-                        for key, value in test_result.details.items():
-                            if key not in {"test_description", "requirement", "purpose", "fix", 
-                                          "expected_status", "status_code", "url_tested", "spec_reference"}:
-                                if isinstance(value, (dict, list)):
-                                    console.print(f"  {key}: {json.dumps(value, indent=2)}")
-                                else:
-                                    console.print(f"  {key}: {value}")
-                        console.print()
-            
-            # Show summary
-            display_terminal_summary(report)
-            
-            return report
-    
-    validation_report = asyncio.run(run_validation_test())
-    validation_passed = validation_report.validation_result.failed_tests == 0
-    if not validation_passed:
-        all_passed = False
-    
-    # OAuth server testing already done above, no need to repeat
-    
-    # Tools testing is already included in main validation, no need for separate section
-    
-    # Exit with error code if tests failed
-    if not all_passed:
-        sys.exit(1)
 
 
 @cli.command()
