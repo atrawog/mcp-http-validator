@@ -145,6 +145,18 @@ class MCPValidator(OAuthTestValidator, ProtocolTests, MCPToolTests, OAuthHelpers
                 ),
                 (
                     TestCase(
+                        id="resource-token-consistency",
+                        name="Resource-Token Consistency",
+                        description="Verify resource metadata matches token audience",
+                        spec_reference="RFC 9728 Section 2.2, RFC 8707",
+                        severity=TestSeverity.HIGH,
+                        required=False,
+                        category="oauth",
+                    ),
+                    self.test_resource_token_consistency,
+                ),
+                (
+                    TestCase(
                         id="token-refresh",
                         name="OAuth Token Refresh",
                         description="Test OAuth token refresh functionality",

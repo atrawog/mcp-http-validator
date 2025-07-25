@@ -279,6 +279,7 @@ The validator performs the following tests:
 
 ### Important Tests
 - **Token Audience Validation**: Validates token `aud` claim contains server URL
+- **Resource-Token Consistency**: Verifies protected resource metadata matches token audience
 - **SSE Support**: Server-Sent Events for MCP protocol
 
 ### OAuth Server Tests

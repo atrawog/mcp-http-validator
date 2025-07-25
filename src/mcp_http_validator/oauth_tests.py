@@ -755,6 +755,166 @@ class OAuthTestValidator(BaseMCPValidator):
                 "error_type": type(e).__name__
             }
     
+    async def test_resource_token_consistency(self) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+        """Test that the resource identifier in protected resource metadata matches token audience."""
+        details = {
+            "test_description": "Verifying consistency between protected resource metadata and token audience",
+            "requirement": "The resource URI in /.well-known/oauth-protected-resource should match the audience in issued tokens",
+            "purpose": "Ensures tokens are properly scoped to the declared resource",
+            "spec_reference": "RFC 9728 Section 2.2, RFC 8707"
+        }
+        
+        # Step 1: Get protected resource metadata
+        metadata_url = urljoin(self.server_url, "/.well-known/oauth-protected-resource")
+        try:
+            metadata_response = await self.client.get(metadata_url, timeout=5.0)
+            
+            if metadata_response.status_code != 200:
+                return None, (
+                    "Cannot verify resource-token consistency without protected resource metadata. "
+                    "The /.well-known/oauth-protected-resource endpoint is not accessible. "
+                    "This test requires both the metadata endpoint and a valid token to compare."
+                ), {
+                    **details,
+                    "metadata_status": metadata_response.status_code,
+                    "note": "Run test_protected_resource_metadata first"
+                }
+            
+            metadata = metadata_response.json()
+            declared_resource = metadata.get("resource")
+            
+            if not declared_resource:
+                return False, (
+                    "Protected resource metadata is missing the 'resource' field. "
+                    "RFC 9728 requires the 'resource' field to identify the protected resource. "
+                    "Without this field, tokens cannot be properly scoped to the resource."
+                ), {
+                    **details,
+                    "metadata": metadata,
+                    "missing_field": "resource",
+                    "fix": "Add 'resource' field with the server's resource URI to metadata"
+                }
+            
+            details["declared_resource"] = declared_resource
+            
+        except Exception as e:
+            return None, (
+                f"Error fetching protected resource metadata: {str(e)}. "
+                "Cannot verify resource-token consistency without accessible metadata."
+            ), {
+                **details,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+        
+        # Step 2: Get or check access token
+        if not self.access_token:
+            self.access_token = await self.get_access_token(interactive=False)
+        
+        if not self.access_token:
+            return None, (
+                "Resource-token consistency test requires a valid access token. "
+                "This test verifies that the resource identifier in the metadata matches "
+                "the audience claim in actual OAuth tokens issued for this server. "
+                "Run 'mcp-validate flow' to obtain a token."
+            ), {
+                **details,
+                "suggestion": "Run 'mcp-validate flow' for interactive OAuth flow"
+            }
+        
+        # Step 3: Check if token is JWT
+        try:
+            import jwt
+            token_data = jwt.decode(self.access_token, options={"verify_signature": False})
+            details["token_type"] = "JWT"
+        except jwt.DecodeError:
+            return None, (
+                "Token is not a JWT (likely opaque). Resource-token consistency can only be "
+                "verified with JWT tokens that have inspectable audience claims. "
+                "Opaque tokens require server-side introspection to verify audience."
+            ), {
+                **details,
+                "token_type": "opaque",
+                "note": "JWT tokens are recommended for client-side validation"
+            }
+        except Exception as e:
+            return False, (
+                f"Error decoding token: {str(e)}. "
+                "Token format may be invalid or corrupted."
+            ), {
+                **details,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+        
+        # Step 4: Compare resource with token audience
+        aud_claim = token_data.get("aud", [])
+        if isinstance(aud_claim, str):
+            aud_claim = [aud_claim]
+        elif not isinstance(aud_claim, list):
+            aud_claim = []
+        
+        details["token_audience"] = aud_claim
+        details["token_claims"] = {
+            "iss": token_data.get("iss"),
+            "sub": token_data.get("sub"),
+            "exp": token_data.get("exp"),
+            "iat": token_data.get("iat"),
+            "scope": token_data.get("scope")
+        }
+        
+        # Normalize URIs for comparison (remove trailing slashes)
+        normalized_resource = declared_resource.rstrip('/')
+        normalized_audiences = [aud.rstrip('/') for aud in aud_claim]
+        
+        if normalized_resource in normalized_audiences:
+            return True, (
+                f"Resource-token consistency verified! The protected resource metadata declares "
+                f"'{declared_resource}' as its resource identifier, and the OAuth token correctly "
+                f"includes this in its audience claim. This ensures tokens are properly scoped "
+                f"to the intended resource per RFC 8707 and RFC 9728."
+            ), details
+        else:
+            # Check if token might be using a different valid identifier
+            server_url_normalized = self.server_url.rstrip('/')
+            base_url_normalized = self.base_url.rstrip('/')
+            
+            possible_matches = []
+            for aud in normalized_audiences:
+                if aud == server_url_normalized or aud == base_url_normalized:
+                    possible_matches.append(aud)
+            
+            if possible_matches:
+                return False, (
+                    f"Resource-token mismatch detected! The protected resource metadata declares "
+                    f"'{declared_resource}' as the resource identifier, but the token audience "
+                    f"contains {normalized_audiences}. While the token includes the server URL "
+                    f"({possible_matches}), it should match the declared resource identifier. "
+                    f"This inconsistency may cause authorization failures. The OAuth server should "
+                    f"be configured to use the resource identifier from the metadata when issuing tokens."
+                ), {
+                    **details,
+                    "mismatch_type": "resource_identifier_mismatch",
+                    "expected": declared_resource,
+                    "actual": aud_claim,
+                    "partial_matches": possible_matches,
+                    "fix": "Configure OAuth server to use resource identifier from metadata in token audience"
+                }
+            else:
+                return False, (
+                    f"Resource-token mismatch detected! The protected resource metadata declares "
+                    f"'{declared_resource}' as the resource identifier, but the token audience "
+                    f"is {normalized_audiences}. The token audience should include the declared "
+                    f"resource identifier to ensure proper authorization. This mismatch indicates "
+                    f"the OAuth server may not be properly configured for this resource."
+                ), {
+                    **details,
+                    "mismatch_type": "complete_mismatch",
+                    "expected": declared_resource,
+                    "actual": aud_claim,
+                    "fix": "Ensure OAuth server issues tokens with correct resource in audience claim"
+                }
+    
     async def test_oauth_server_discovery(self) -> Tuple[bool, Optional[str], Dict[str, Any]]:
         """Test OAuth server discovery."""
         details = {
