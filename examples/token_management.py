@@ -38,7 +38,7 @@ async def check_and_manage_tokens(mcp_server_url: str):
     print("\n3. Token Status:")
     
     # Get token info
-    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
     access_token = env_manager.get(f"OAUTH_ACCESS_TOKEN_{server_key}")
     expires_at = env_manager.get(f"OAUTH_TOKEN_EXPIRES_AT_{server_key}")
     refresh_token = env_manager.get(f"OAUTH_REFRESH_TOKEN_{server_key}")
@@ -143,7 +143,7 @@ async def simulate_expired_token(mcp_server_url: str):
     env_manager = EnvManager()
     
     # Temporarily set token to expired
-    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
     current_expires = env_manager.get(f"OAUTH_TOKEN_EXPIRES_AT_{server_key}")
     
     if current_expires:

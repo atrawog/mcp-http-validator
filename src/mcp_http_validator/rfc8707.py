@@ -181,6 +181,7 @@ class RFC8707Validator:
             "server_url": server_url,
             "token_audience": token_audience,
             "errors": [],
+            "warnings": [],
             "security_risk": None
         }
         

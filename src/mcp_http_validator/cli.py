@@ -763,7 +763,7 @@ def flow(
             if force:
                 console.print("[yellow]Force flag set: Clearing existing access tokens[/yellow]")
                 # Clear tokens only, keep client registration
-                server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+                server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
                 env_manager.delete(f"OAUTH_ACCESS_TOKEN_{server_key}")
                 env_manager.delete(f"OAUTH_REFRESH_TOKEN_{server_key}")
                 env_manager.delete(f"OAUTH_TOKEN_EXPIRES_AT_{server_key}")
@@ -777,7 +777,7 @@ def flow(
                 
                 if valid_token:
                     # Get token expiration info
-                    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+                    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
                     expires_at = env_manager.get(f"OAUTH_TOKEN_EXPIRES_AT_{server_key}")
                     
                     # Calculate remaining time
@@ -1526,7 +1526,7 @@ def token_show(mcp_server_url: str):
         console.print(f"  Token: {valid_token[:20]}...")
     else:
         # Check if expired token exists
-        server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         expired_token = env_manager.get(f"OAUTH_ACCESS_TOKEN_{server_key}")
         if expired_token:
             console.print("[yellow]⚠[/yellow] Access token expired")
@@ -1550,7 +1550,7 @@ def token_clear(mcp_server_url: str):
     """Clear stored tokens for a specific server (keeps client credentials)."""
     env_manager = EnvManager()
     
-    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+    server_key = mcp_server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
     
     # Clear token-related keys
     token_keys = [

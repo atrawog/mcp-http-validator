@@ -106,7 +106,7 @@ class EnvManager:
             Dictionary with client_id, client_secret, and registration_token
         """
         # Normalize server URL to create consistent keys
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         
         return {
             "client_id": self.get(f"OAUTH_CLIENT_ID_{server_key}"),
@@ -135,8 +135,8 @@ class EnvManager:
         Returns:
             True if successful
         """
-        # Normalize server URL
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        # Normalize server URL - replace all non-alphanumeric chars with underscores
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         
         values = {
             f"OAUTH_CLIENT_ID_{server_key}": client_id,
@@ -171,8 +171,8 @@ class EnvManager:
         Returns:
             True if successful
         """
-        # Normalize server URL
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        # Normalize server URL - replace all non-alphanumeric chars with underscores
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         
         # Calculate expiration timestamp (with 5 minute buffer for safety)
         expires_at = int(time.time()) + expires_in - 300
@@ -196,7 +196,7 @@ class EnvManager:
         Returns:
             Valid access token or None if expired/missing
         """
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         
         access_token = self.get(f"OAUTH_ACCESS_TOKEN_{server_key}")
         expires_at = self.get(f"OAUTH_TOKEN_EXPIRES_AT_{server_key}")
@@ -222,7 +222,7 @@ class EnvManager:
         Returns:
             Refresh token or None
         """
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         return self.get(f"OAUTH_REFRESH_TOKEN_{server_key}")
     
     def remove_oauth_credentials(self, server_url: str) -> bool:
@@ -234,7 +234,7 @@ class EnvManager:
         Returns:
             True if successful
         """
-        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").upper()
+        server_key = server_url.replace("https://", "").replace("http://", "").replace("/", "_").replace(".", "_").replace("-", "_").upper()
         
         keys_to_remove = [
             f"OAUTH_CLIENT_ID_{server_key}",
