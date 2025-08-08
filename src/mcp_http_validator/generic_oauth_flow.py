@@ -375,7 +375,7 @@ class GenericOAuthFlow:
         
         try:
             # Generate auth URL
-            auth_url, state, verifier = client.generate_authorization_url(
+            api_url, state, verifier = client.generate_authorization_url(
                 scope=scope,
                 resources=[self.mcp_server_url],
             )
@@ -384,13 +384,13 @@ class GenericOAuthFlow:
             if self.config.auto_open_browser and not EnvironmentDetector.is_ci():
                 if self.config.browser_command:
                     import subprocess
-                    subprocess.run([self.config.browser_command, auth_url])
+                    subprocess.run([self.config.browser_command, api_url])
                 else:
-                    webbrowser.open(auth_url)
+                    webbrowser.open(api_url)
             
             if not self.config.suppress_console:
                 console.print("\n[bold]Authorization Required:[/bold]")
-                console.print(f"Visit: [cyan]{auth_url}[/cyan]\n")
+                console.print(f"Visit: [cyan]{api_url}[/cyan]\n")
             
             # Get authorization code
             if self.callback_server:

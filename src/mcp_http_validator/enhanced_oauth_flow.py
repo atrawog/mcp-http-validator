@@ -143,13 +143,13 @@ async def enhanced_oauth_flow(
         
         try:
             # Generate authorization URL
-            auth_url, state, verifier = client.generate_authorization_url(
+            api_url, state, verifier = client.generate_authorization_url(
                 scope=scope,
                 resources=[mcp_server_url],
             )
             
             console.print("\n[bold]Authorization Required:[/bold]")
-            console.print(f"1. Open this URL in your browser:\n   [cyan]{auth_url}[/cyan]\n")
+            console.print(f"1. Open this URL in your browser:\n   [cyan]{api_url}[/cyan]\n")
             
             if callback_server:
                 console.print("2. Authorize the application")

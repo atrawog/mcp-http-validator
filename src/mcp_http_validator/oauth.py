@@ -200,8 +200,8 @@ class OAuthTestClient:
             for resource in resources:
                 params[f"resource"] = resource
         
-        auth_url = f"{self.server_metadata.authorization_endpoint}?{urlencode(params, doseq=True)}"
-        return auth_url, state, code_verifier
+        api_url = f"{self.server_metadata.authorization_endpoint}?{urlencode(params, doseq=True)}"
+        return api_url, state, code_verifier
     
     def _generate_code_challenge(self, verifier: str) -> str:
         """Generate PKCE code challenge from verifier."""

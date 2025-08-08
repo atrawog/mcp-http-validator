@@ -57,13 +57,13 @@ async def test_oauth_flow(mcp_server_url: str):
         
         # Generate authorization URL
         print("\n4. Generating authorization URL...")
-        auth_url, state, verifier = client.generate_authorization_url(
+        api_url, state, verifier = client.generate_authorization_url(
             scope="mcp:read mcp:write",
             resources=[mcp_server_url],
         )
         
         print(f"\nPlease visit this URL to authorize:")
-        print(f"{auth_url}")
+        print(f"{api_url}")
         print(f"\nAfter authorization, you'll be redirected to a URL containing a 'code' parameter.")
         
         # Interactive flow

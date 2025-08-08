@@ -43,7 +43,7 @@ class OAuthHelpers(BaseMCPValidator):
             pass  # Continue with other methods
         
         # Method 2: Try common subdomain patterns
-        parsed_url = urlparse(self.base_url)
+        parsed_url = urlparse(self.api_url)
         base_domain = parsed_url.hostname
         if base_domain:
             # Extract base domain (e.g., atratest.org from echo-stateless.atratest.org)
@@ -51,30 +51,30 @@ class OAuthHelpers(BaseMCPValidator):
             if len(parts) > 2:
                 base_domain = '.'.join(parts[-2:])
             
-            common_auth_urls = [
+            common_api_urls = [
                 f"https://auth.{base_domain}",
                 f"https://oauth.{base_domain}",
                 f"https://sso.{base_domain}",
                 f"https://login.{base_domain}",
             ]
             
-            for auth_url in common_auth_urls:
+            for api_url in common_api_urls:
                 try:
                     # Check if OAuth metadata endpoint exists
-                    test_url = urljoin(auth_url, "/.well-known/oauth-authorization-server")
+                    test_url = urljoin(api_url, "/.well-known/oauth-authorization-server")
                     response = await self.client.get(test_url, follow_redirects=True, timeout=3.0)
                     if response.status_code == 200:
-                        discovered_servers.append(auth_url)
+                        discovered_servers.append(api_url)
                         break  # Found one
                 except Exception:
                     continue
         
         # Method 3: Check if the MCP server itself is also an OAuth server
         try:
-            test_url = urljoin(self.base_url, "/.well-known/oauth-authorization-server")
+            test_url = urljoin(self.api_url, "/.well-known/oauth-authorization-server")
             response = await self.client.get(test_url, follow_redirects=True, timeout=3.0)
             if response.status_code == 200:
-                discovered_servers.append(self.base_url)
+                discovered_servers.append(self.api_url)
         except Exception as e:
             pass
         

@@ -47,7 +47,7 @@ class BaseMCPValidator(ABC):
         self.server_url = server_url.rstrip("/")
         # Extract base URL for .well-known paths
         parsed = urlparse(server_url)
-        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
+        self.api_url = f"{parsed.scheme}://{parsed.netloc}"
         self.mcp_endpoint = server_url  # Use exact URL for MCP endpoint
         self.access_token = access_token
         self.timeout = timeout

@@ -9,13 +9,13 @@ class RFC8707Validator:
     
     @staticmethod
     def validate_authorization_request(
-        auth_url: str,
+        api_url: str,
         expected_resources: List[str]
     ) -> Tuple[bool, List[str], Dict[str, any]]:
         """Validate that authorization request includes resource parameters.
         
         Args:
-            auth_url: Full authorization URL with parameters
+            api_url: Full authorization URL with parameters
             expected_resources: Resources that should be requested
             
         Returns:
@@ -27,11 +27,11 @@ class RFC8707Validator:
             "test_description": "Validating OAuth authorization request for RFC 8707 compliance",
             "requirement": "RFC 8707 requires 'resource' parameter(s) in authorization requests",
             "purpose": "Resource indicators prevent token confusion attacks by restricting token audience",
-            "url_tested": auth_url,
+            "url_tested": api_url,
             "expected_resources": expected_resources
         }
         
-        parsed = urlparse(auth_url)
+        parsed = urlparse(api_url)
         params = parse_qs(parsed.query)
         
         # RFC 8707: Multiple resource parameters allowed
@@ -43,7 +43,7 @@ class RFC8707Validator:
         if not resources:
             details["error"] = "No 'resource' parameter found in authorization request"
             details["fix"] = "Add resource parameter(s) to authorization request URL"
-            details["example"] = f"{auth_url}&resource={expected_resources[0] if expected_resources else 'https://api.example.com'}"
+            details["example"] = f"{api_url}&resource={expected_resources[0] if expected_resources else 'https://api.example.com'}"
         else:
             # Check if expected resources are included
             missing = [r for r in expected_resources if r not in resources]

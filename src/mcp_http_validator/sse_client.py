@@ -24,15 +24,15 @@ class MCPSSEClient:
     pattern required by MCP HTTP+SSE transport specification.
     """
     
-    def __init__(self, base_url: str, client: httpx.AsyncClient, headers: Optional[Dict[str, str]] = None):
+    def __init__(self, api_url: str, client: httpx.AsyncClient, headers: Optional[Dict[str, str]] = None):
         """Initialize SSE client.
         
         Args:
-            base_url: The SSE endpoint URL
+            api_url: The SSE endpoint URL
             client: HTTP client to use for requests
             headers: Optional headers to include in requests
         """
-        self.base_url = base_url
+        self.api_url = api_url
         self.client = client
         self.headers = headers or {}
         self.endpoint_url: Optional[str] = None
@@ -92,7 +92,7 @@ class MCPSSEClient:
         headers = {**self.headers, "Accept": "text/event-stream"}
         
         try:
-            async with self.client.stream("GET", self.base_url, headers=headers) as response:
+            async with self.client.stream("GET", self.api_url, headers=headers) as response:
                 if response.status_code != 200:
                     return
                     
@@ -138,7 +138,7 @@ class MCPSSEClient:
                 if endpoint.startswith("/"):
                     # Relative URL - combine with base
                     from urllib.parse import urlparse, urljoin
-                    parsed = urlparse(self.base_url)
+                    parsed = urlparse(self.api_url)
                     base = f"{parsed.scheme}://{parsed.netloc}"
                     self.endpoint_url = urljoin(base, endpoint)
                 else:

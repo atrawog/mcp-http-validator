@@ -37,7 +37,7 @@ class BaseMCPValidator:
         auto_register: bool = True,
     ):
         self.server_url = server_url.rstrip("/")
-        self.base_url = self.server_url  # For compatibility
+        self.api_url = self.server_url  # For compatibility
         self.access_token = access_token
         self.timeout = timeout
         self.verify_ssl = verify_ssl
@@ -46,14 +46,14 @@ class BaseMCPValidator:
         
         # Parse server URL to extract base URL
         parsed = urlparse(self.server_url)
-        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
+        self.api_url = f"{parsed.scheme}://{parsed.netloc}"
         
         # Determine MCP endpoint
         if "/mcp" in parsed.path:
             self.mcp_endpoint = self.server_url
         else:
             # Default to /mcp endpoint
-            self.mcp_endpoint = urljoin(self.base_url, "/mcp")
+            self.mcp_endpoint = urljoin(self.api_url, "/mcp")
         
         # Initialize HTTP client
         self.client = httpx.AsyncClient(verify=verify_ssl, timeout=timeout)
@@ -582,7 +582,7 @@ class OAuthTestValidator(BaseMCPValidator):
         details["resource_metadata_found"] = False
         
         try:
-            metadata_url = urljoin(self.base_url, "/.well-known/oauth-protected-resource")
+            metadata_url = urljoin(self.api_url, "/.well-known/oauth-protected-resource")
             metadata_response = await self.client.get(metadata_url, timeout=5.0)
             if metadata_response.status_code == 200:
                 metadata = metadata_response.json()
@@ -877,11 +877,11 @@ class OAuthTestValidator(BaseMCPValidator):
         else:
             # Check if token might be using a different valid identifier
             server_url_normalized = self.server_url.rstrip('/')
-            base_url_normalized = self.base_url.rstrip('/')
+            api_url_normalized = self.api_url.rstrip('/')
             
             possible_matches = []
             for aud in normalized_audiences:
-                if aud == server_url_normalized or aud == base_url_normalized:
+                if aud == server_url_normalized or aud == api_url_normalized:
                     possible_matches.append(aud)
             
             if possible_matches:
