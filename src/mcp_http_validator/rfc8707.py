@@ -173,7 +173,7 @@ class RFC8707Validator:
             Tuple of (is_compliant, validation_details)
         """
         validation = {
-            "test_description": "Validating MCP resource server audience validation",
+            "test_description": "Validating protected resource audience validation",
             "requirement": "Resource servers must validate token audience contains their identifier",
             "purpose": "Prevents token confusion attacks by rejecting tokens meant for other servers",
             "spec_reference": "RFC 8707 Section 4 - Resource Server Validation",
